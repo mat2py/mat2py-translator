@@ -1,1 +1,1 @@
-miss-hit-core==0.9.30
+miss-hit-core>=0.9.30

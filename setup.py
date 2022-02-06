@@ -3,8 +3,6 @@
 import sys
 import setuptools
 
-import miss_hit_core.version
-
 with open("README.md", "r") as fd:
     long_description = fd.read()
 
@@ -19,7 +17,7 @@ setuptools.setup(
     url="https://translate.mat2py.org",
     license="GNU Affero General Public License v3",
     packages=["mh_python"],
-    install_requires=["miss_hit_core==%s" % miss_hit_core.version.VERSION],
+    install_requires=["miss_hit_core>=0.9.30"],
     python_requires=">=3.6, <4",
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
