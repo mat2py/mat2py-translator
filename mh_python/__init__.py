@@ -49,7 +49,7 @@ except ModuleNotFoundError:
 class Python_Visitor(AST_Visitor):
     """Matlab To Python/Numpy output: Python"""
 
-    def __init__(self, fd, mh=None, matlab_alias="mp"):
+    def __init__(self, fd, mh=None, **kwargs):
         super().__init__()
         self.fd = fd
         self.mh = mh
@@ -58,9 +58,18 @@ class Python_Visitor(AST_Visitor):
         self.node_visitor = {
             Function_Signature: pass_visitor,
             Action: pass_visitor,
+            Cell_Expression: getattr(self, "matrix_expression_visitor"),
         }
 
-        self.func_alias = lambda n: f"{matlab_alias}.{n}"
+        self.options = {
+            "matlab_alias": "mp",
+            "generate_main": False,
+            "inline_mode": False,
+            "implicit_copy": True,
+        }
+        self.options.update(**kwargs)
+
+        self.func_alias = lambda n: f"{self.options['matlab_alias']}.{n}"
 
     def __setitem__(self, node, src):
         self.node_src[node.uid] = src
@@ -103,6 +112,13 @@ class Python_Visitor(AST_Visitor):
 
     def _pass_visitor(self, node: Node, n_parent, relation):
         pass
+
+    def dynamic_selection_visitor(self, node: Dynamic_Selection, n_parent, relation):
+        self[node] = f'getfield({self.pop(node.n_prefix)}, {self.pop(node.n_field)})'
+        # ToDo: miss_hit_core lack support for setfield, e.g. s.(f) = v
+
+    def selection_visitor(self, node: Selection, n_parent, relation):
+        self[node] = f'{self.pop(node.n_prefix)}.{self.pop(node.n_field)}'
 
     def general_for_statement_visitor(
         self, node: General_For_Statement, n_parent, relation
@@ -212,10 +228,10 @@ class Python_Visitor(AST_Visitor):
         header = "import mat2py as mp\n" "from mat2py.core import *\n"
 
         n_sig = node.l_functions[0].n_sig
-        is_main = len(n_sig.l_inputs) + len(n_sig.l_outputs) == 0
+        generate_main = self.options['generate_main'] and (len(n_sig.l_inputs) + len(n_sig.l_outputs) == 0)
 
         l_functions = [self.pop(l) for l in node.l_functions]
-        if is_main:
+        if generate_main:
             l_functions = [*l_functions[1:], l_functions[0]]
 
         footer = (
@@ -223,24 +239,32 @@ class Python_Visitor(AST_Visitor):
                 f'if __name__ == "__main__":\n'
                 f'{self.indent(f"{n_sig.n_name.t_ident.value}()")}'
             )
-            if is_main
+            if generate_main
             else ""
         )
 
         func = "\n".join(l_functions)
-        self[node] = "\n".join([header, func, footer])
+        self[node] = "\n".join(
+            [header, func, footer][(1 if self.options['inline_mode'] else 0):]
+        ).lstrip('\n')
 
     def script_file_visitor(self, node: Script_File, n_parent, relation):
         header = "import mat2py as mp\n" "from mat2py.core import *\n"
-        body = (
-            f"def main():\n"
-            f"{self.indent(self.pop(node.n_statements))}\n\n\n"
-            f'if __name__ == "__main__":\n'
-            f'{self.indent("main()")}'
-        )
+
+        if self.options['generate_main']:
+            body = (
+                f"def main():\n"
+                f"{self.indent(self.pop(node.n_statements))}\n\n\n"
+                f'if __name__ == "__main__":\n'
+                f'{self.indent("main()")}'
+            )
+        else:
+            body = self.pop(node.n_statements)
 
         func = "\n".join([self.pop(l) for l in node.l_functions])
-        self[node] = "\n".join([header, func, body])
+        self[node] = "\n".join(
+            [header, func, body][(1 if self.options['inline_mode'] else 0):]
+        ).lstrip('\n')
 
     def sequence_of_statements_visitor(
         self, node: Sequence_Of_Statements, n_parent, relation
@@ -267,7 +291,8 @@ class Python_Visitor(AST_Visitor):
     def simple_assignment_statement_visitor(
         self, node: Simple_Assignment_Statement, n_parent, relation
     ):
-        self[node] = f"{self.pop(node.n_lhs)} = {self.pop(node.n_rhs)}"
+        bra, ket = ("copy(", ")") if self.options['implicit_copy'] and isinstance(node.n_rhs, Identifier) else ("", "")
+        self[node] = f"{self.pop(node.n_lhs)} = {bra}{self.pop(node.n_rhs)}{ket}"
 
     def function_call_visitor(self, node: Function_Call, n_parent, relation):
         args = ", ".join(self.pop(i) for i in node.l_args)
@@ -368,8 +393,9 @@ class Python_Visitor(AST_Visitor):
                 node
             ] = f'{", ".join(self.pop(i) for i in node.l_items)}{"" if no_indent else ", "}'
 
-    def matrix_expression_visitor(self, node: Matrix_Expression, n_parent, relation):
-        self[node] = f"M[{self.pop(node.n_content)}]"
+    def matrix_expression_visitor(self, node: (Matrix_Expression, Cell_Expression), n_parent, relation):
+        keyword = {Matrix_Expression: "M", Cell_Expression: "C"}[type(node)]
+        self[node] = f"{keyword}[{self.pop(node.n_content)}]"
         # TODO: be careful with empty func_alias
 
     def unary_operation_visitor(self, node: Unary_Operation, n_parent, relation):
@@ -484,7 +510,7 @@ class MH_Python(command_line.MISS_HIT_Back_End):
             try:
                 n_cu.visit(
                     None,
-                    Python_Visitor(fd, wp.mh, matlab_alias=wp.options.matlab_alias),
+                    Python_Visitor(fd, wp.mh, matlab_alias=wp.options.matlab_alias, **wp.extra_options),
                     "Root",
                 )
                 return MH_Python_Result(wp, fd.getvalue())
