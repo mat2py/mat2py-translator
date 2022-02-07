@@ -24,11 +24,12 @@
 ##                                                                          ##
 ##############################################################################
 
+import sys
 from collections import OrderedDict
 from io import StringIO
 from pathlib import Path
 
-from miss_hit_core import command_line, pathutil, work_package
+from miss_hit_core import command_line, pathutil, work_package, cfg_tree
 from miss_hit_core.errors import Error, Message_Handler
 from miss_hit_core.m_ast import *
 from miss_hit_core.m_lexer import MATLAB_Lexer
@@ -512,7 +513,7 @@ class MH_Python(command_line.MISS_HIT_Back_End):
         pass
 
 
-def main_handler():
+def parse_args(argv=None):
     clp = command_line.create_basic_clp()
 
     # Extra language options
@@ -537,7 +538,41 @@ def main_handler():
 
     # Extra debug options
 
-    options = command_line.parse_args(clp)
+    if argv is not None:
+        _argv = sys.argv
+        try:
+            sys.argv = argv
+            return command_line.parse_args(clp)
+        finally:
+            sys.argv = _argv
+    else:
+        return command_line.parse_args(clp)
+
+
+def process_one_file(path: Path, options=None, mh=None):
+    if options is None:
+        options = parse_args()
+
+    if mh is None:
+        mh = Message_Handler("debug")
+
+        mh.show_context = not options.brief
+        mh.show_style = False
+        mh.show_checks = True
+        mh.autofix = False
+    
+    cfg_tree.register_item(mh, path, options)
+    wp = work_package.create(False,
+                                                path,
+                                                options.input_encoding,
+                                                mh,
+                                                options, {})
+    backend = MH_Python(options)
+    wp.register_file()
+    return backend.process_result(backend.process_wp(wp))
+
+def main_handler():
+    options = parse_args()
 
     mh = Message_Handler("debug")
 
