@@ -34,3 +34,6 @@ jobs:
         user: __token__
         password: ${{ secrets.PYPI_API_TOKEN }}
         packages_dir: dist/
+
+    - name: Notify 3rd_party
+      run: curl -s ${{ secrets.DEPLOY_HOOK_URL }}
