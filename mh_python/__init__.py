@@ -97,13 +97,13 @@ class Python_Visitor(AST_Visitor):
 
             visitor(node, n_parent, relation)
 
-        except AttributeError:
-            self[node] = ""
+        # except AttributeError:
+        #     self[node] = ""
 
         except NotImplementedError:
             self[node] = ""
 
-            # Top of Node Root
+        # Top of Node Root
         if n_parent is None:
             # TODO: remove redundant bracket with python formatter
             #     `black -i -S {}.py` can only solve tiny part of it
@@ -117,7 +117,7 @@ class Python_Visitor(AST_Visitor):
         pass
 
     def dynamic_selection_visitor(self, node: Dynamic_Selection, n_parent, relation):
-        self[node] = f"getfield({self.pop(node.n_prefix)}, {self.pop(node.n_field)})"
+        self[node] = f"{self.pop(node.n_prefix)}[{self.pop(node.n_field)}]"
         # ToDo: miss_hit_core lack support for setfield, e.g. s.(f) = v
 
     def selection_visitor(self, node: Selection, n_parent, relation):
@@ -418,6 +418,10 @@ class Python_Visitor(AST_Visitor):
             self[node] = f"{n_expr}.T"
         elif t_op == "'":
             self[node] = f"{n_expr}.H"
+        elif t_op == "~":
+            if not n_expr.startswith("("):
+                n_expr = f"({n_expr})"
+            self[node] = f"_not{n_expr}"
         else:
             self[node] = f"{t_op}{n_expr}"
 
