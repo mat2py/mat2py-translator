@@ -63,11 +63,14 @@ class Python_Visitor(AST_Visitor):
 
         self.options = {
             "matlab_alias": "mp",
-            "generate_main": False,
+            "generate_main": True,
             "inline_mode": False,
             "implicit_copy": True,
         }
         self.options.update(**kwargs)
+        self.options["generate_main"] = (
+            self.options["generate_main"] and not self.options["inline_mode"]
+        )
 
         self.func_alias = lambda n: f"{self.options['matlab_alias']}.{n}"
 
@@ -114,11 +117,11 @@ class Python_Visitor(AST_Visitor):
         pass
 
     def dynamic_selection_visitor(self, node: Dynamic_Selection, n_parent, relation):
-        self[node] = f'getfield({self.pop(node.n_prefix)}, {self.pop(node.n_field)})'
+        self[node] = f"getfield({self.pop(node.n_prefix)}, {self.pop(node.n_field)})"
         # ToDo: miss_hit_core lack support for setfield, e.g. s.(f) = v
 
     def selection_visitor(self, node: Selection, n_parent, relation):
-        self[node] = f'{self.pop(node.n_prefix)}.{self.pop(node.n_field)}'
+        self[node] = f"{self.pop(node.n_prefix)}.{self.pop(node.n_field)}"
 
     def general_for_statement_visitor(
         self, node: General_For_Statement, n_parent, relation
@@ -228,7 +231,9 @@ class Python_Visitor(AST_Visitor):
         header = "import mat2py as mp\n" "from mat2py.core import *\n"
 
         n_sig = node.l_functions[0].n_sig
-        generate_main = self.options['generate_main'] and (len(n_sig.l_inputs) + len(n_sig.l_outputs) == 0)
+        generate_main = self.options["generate_main"] and (
+            len(n_sig.l_inputs) + len(n_sig.l_outputs) == 0
+        )
 
         l_functions = [self.pop(l) for l in node.l_functions]
         if generate_main:
@@ -245,13 +250,13 @@ class Python_Visitor(AST_Visitor):
 
         func = "\n".join(l_functions)
         self[node] = "\n".join(
-            [header, func, footer][(1 if self.options['inline_mode'] else 0):]
-        ).lstrip('\n')
+            [header, func, footer][(1 if self.options["inline_mode"] else 0) :]
+        ).lstrip("\n")
 
     def script_file_visitor(self, node: Script_File, n_parent, relation):
         header = "import mat2py as mp\n" "from mat2py.core import *\n"
 
-        if self.options['generate_main']:
+        if self.options["generate_main"]:
             body = (
                 f"def main():\n"
                 f"{self.indent(self.pop(node.n_statements))}\n\n\n"
@@ -263,8 +268,8 @@ class Python_Visitor(AST_Visitor):
 
         func = "\n".join([self.pop(l) for l in node.l_functions])
         self[node] = "\n".join(
-            [header, func, body][(1 if self.options['inline_mode'] else 0):]
-        ).lstrip('\n')
+            [header, func, body][(1 if self.options["inline_mode"] else 0) :]
+        ).lstrip("\n")
 
     def sequence_of_statements_visitor(
         self, node: Sequence_Of_Statements, n_parent, relation
@@ -291,7 +296,11 @@ class Python_Visitor(AST_Visitor):
     def simple_assignment_statement_visitor(
         self, node: Simple_Assignment_Statement, n_parent, relation
     ):
-        bra, ket = ("copy(", ")") if self.options['implicit_copy'] and isinstance(node.n_rhs, Identifier) else ("", "")
+        bra, ket = (
+            ("copy(", ")")
+            if self.options["implicit_copy"] and isinstance(node.n_rhs, Identifier)
+            else ("", "")
+        )
         self[node] = f"{self.pop(node.n_lhs)} = {bra}{self.pop(node.n_rhs)}{ket}"
 
     def function_call_visitor(self, node: Function_Call, n_parent, relation):
@@ -393,7 +402,9 @@ class Python_Visitor(AST_Visitor):
                 node
             ] = f'{", ".join(self.pop(i) for i in node.l_items)}{"" if no_indent else ", "}'
 
-    def matrix_expression_visitor(self, node: (Matrix_Expression, Cell_Expression), n_parent, relation):
+    def matrix_expression_visitor(
+        self, node: (Matrix_Expression, Cell_Expression), n_parent, relation
+    ):
         keyword = {Matrix_Expression: "M", Cell_Expression: "C"}[type(node)]
         self[node] = f"{keyword}[{self.pop(node.n_content)}]"
         # TODO: be careful with empty func_alias
@@ -486,6 +497,7 @@ class MH_Python(command_line.MISS_HIT_Back_End):
             r"^[A-Za-z_][A-Za-z0-9_]*", options.matlab_alias
         )
         self.matlab_alias = options.matlab_alias
+        self.inline_mode = options.inline_mode
         self.python_alongside = options.python_alongside
         self.format_isort = options.format and isort is not None
         self.format_black = options.format and black is not None
@@ -510,7 +522,13 @@ class MH_Python(command_line.MISS_HIT_Back_End):
             try:
                 n_cu.visit(
                     None,
-                    Python_Visitor(fd, wp.mh, matlab_alias=wp.options.matlab_alias, **wp.extra_options),
+                    Python_Visitor(
+                        fd,
+                        wp.mh,
+                        matlab_alias=wp.options.matlab_alias,
+                        inline_mode=wp.options.inline_mode,
+                        **wp.extra_options,
+                    ),
                     "Root",
                 )
                 return MH_Python_Result(wp, fd.getvalue())
@@ -528,6 +546,8 @@ class MH_Python(command_line.MISS_HIT_Back_End):
             lines = isort.code(lines)
         if self.format_black:
             lines = black.format_str(lines, mode=black.Mode())
+        if self.inline_mode:
+            lines = lines.strip("\n")
 
         if self.python_alongside:
             with open(Path(result.wp.filename).with_suffix(".py"), "w") as fp:
@@ -545,6 +565,13 @@ def parse_args(argv=None):
     # Extra language options
     clp["language_options"].add_argument(
         "--matlab-alias", default="mp", help="Matlab equivalent package name"
+    )
+
+    clp["language_options"].add_argument(
+        "--inline-mode",
+        default=False,
+        action="store_true",
+        help="Inline mode for no extra decorate python code",
     )
 
     # Extra output options
@@ -586,16 +613,13 @@ def process_one_file(path: Path, options=None, mh=None):
         mh.show_style = False
         mh.show_checks = True
         mh.autofix = False
-    
+
     cfg_tree.register_item(mh, path, options)
-    wp = work_package.create(False,
-                                                path,
-                                                options.input_encoding,
-                                                mh,
-                                                options, {})
+    wp = work_package.create(False, path, options.input_encoding, mh, options, {})
     backend = MH_Python(options)
     wp.register_file()
     return backend.process_result(backend.process_wp(wp))
+
 
 def main_handler():
     options = parse_args()
