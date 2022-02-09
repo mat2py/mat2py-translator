@@ -210,7 +210,15 @@ class Python_Visitor(AST_Visitor):
         self[node] = f"{self.pop(node.n_ident)}{bra}{args}{ket}"
 
     def identifier_visitor(self, node: Identifier, n_parent, relation):
-        self[node] = node.t_ident.value
+        value = node.t_ident.value
+
+        # Python and Matlab keywords set are different. Luckily, Matlab forbids identifier start with `_`.
+        prefix = '_' if value in (
+            'not', 'is', 'and', 'or', 'in', 'del',  # python keyword can not be overwritten
+            'all', 'any',  # python build-in names do not suggest overwriting
+            'I', 'M', 'C',  # mat2py keywords
+        ) else ''
+        self[node] = f'{prefix}{value}'
 
     def number_literal_visitor(self, node: Number_Literal, n_parent, relation):
         self[node] = node.t_value.value.replace("i", "j")
