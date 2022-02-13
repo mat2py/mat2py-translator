@@ -216,7 +216,7 @@ class Python_Visitor(AST_Visitor):
         # Python and Matlab keywords set are different. Luckily, Matlab forbids identifier start with `_`.
         prefix = '_' if value in (
             *keyword.kwlist,  # python keyword can not be overwritten
-            'all', 'any', "slice",  # python build-in names do not suggest overwriting
+            'all', 'any', "slice", "eval",  # python build-in names do not suggest overwriting
             'I', 'M', 'C',  # mat2py keywords
         ) else ''
         self[node] = f'{prefix}{value}'

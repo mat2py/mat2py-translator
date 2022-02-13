@@ -27,7 +27,7 @@ special_builtins = {
 }
 
 matlab_keyword = [
-    i.strip() + ".m"
+    i.strip(" '") + ".m"
     for i in """
     'break'
     'case'
