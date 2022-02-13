@@ -28,6 +28,7 @@ import sys
 from collections import OrderedDict
 from io import StringIO
 from pathlib import Path
+import keyword
 
 from miss_hit_core import command_line, pathutil, work_package, cfg_tree
 from miss_hit_core.errors import Error, Message_Handler
@@ -214,8 +215,8 @@ class Python_Visitor(AST_Visitor):
 
         # Python and Matlab keywords set are different. Luckily, Matlab forbids identifier start with `_`.
         prefix = '_' if value in (
-            'not', 'is', 'and', 'or', 'in', 'del',  # python keyword can not be overwritten
-            'all', 'any',  # python build-in names do not suggest overwriting
+            *keyword.kwlist,  # python keyword can not be overwritten
+            'all', 'any', "slice",  # python build-in names do not suggest overwriting
             'I', 'M', 'C',  # mat2py keywords
         ) else ''
         self[node] = f'{prefix}{value}'
