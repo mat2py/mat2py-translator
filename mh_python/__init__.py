@@ -124,6 +124,14 @@ class Python_Visitor(AST_Visitor):
     def selection_visitor(self, node: Selection, n_parent, relation):
         self[node] = f"{self.pop(node.n_prefix)}.{self.pop(node.n_field)}"
 
+    def while_statement_visitor(
+        self, node: While_Statement, n_parent, relation
+    ):
+        self[node] = (
+            f"while {self.pop(node.n_guard)}:\n"
+            f"{self.indent(self.pop(node.n_body))}\n"
+        )
+
     def general_for_statement_visitor(
         self, node: General_For_Statement, n_parent, relation
     ):

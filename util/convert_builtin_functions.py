@@ -118,9 +118,9 @@ def main():
         with open(Path(options.output) / f"{k}.py", "w") as fd:
             fd.write(
                 "# type: ignore \n"
+                "from mat2py.common.backends import numpy as np\n"
                 "from ._internal.array import M \n"
-                "from ._internal.helper import matlab_function_decorators \n"
-                "from ._internal.package_proxy import numpy as np \n"
+                "from ._internal.helper import argout_wrapper_decorators \n"
                 ""
             )
             fd.write("\n".join(v))
