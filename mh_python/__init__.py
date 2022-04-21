@@ -28,6 +28,8 @@ import sys
 from collections import OrderedDict
 from io import StringIO
 from pathlib import Path
+from itertools import chain
+from tempfile import NamedTemporaryFile
 import keyword
 
 from miss_hit_core import command_line, pathutil, work_package, cfg_tree
@@ -291,7 +293,12 @@ class Python_Visitor(AST_Visitor):
     def sequence_of_statements_visitor(
         self, node: Sequence_Of_Statements, n_parent, relation
     ):
-        self[node] = "\n".join([self.pop(l) for l in node.l_statements])
+        self[node] = "\n".join([self.pop(l) for l in node.l_statements]) if node.l_statements else "pass"
+
+    def function_pointer_visitor(
+            self, node: Function_Pointer, n_parent, relation
+    ):
+        self[node] = self.pop(node.n_name)
 
     def function_definition_visitor(
         self, node: Function_Definition, n_parent, relation
@@ -623,7 +630,7 @@ def parse_args(argv=None):
         return command_line.parse_args(clp)
 
 
-def process_one_file(path: Path, options=None, mh=None):
+def process_one_file(path: [Path, str], options=None, mh=None):
     if options is None:
         options = parse_args()
 
@@ -639,7 +646,37 @@ def process_one_file(path: Path, options=None, mh=None):
     wp = work_package.create(False, path, options.input_encoding, mh, options, {})
     backend = MH_Python(options)
     wp.register_file()
-    return backend.process_result(backend.process_wp(wp))
+    backend.process_result(backend.process_wp(wp))
+
+    for msg in chain.from_iterable(wp.mh.messages.get(wp.filename, {}).values()):
+        if msg.kind == "error" and "expected IDENTIFIER, reached EOF instead" == msg.message:
+            raise EOFError(msg.message)
+        elif msg.kind.endswith("error"):
+            mh.emit_message(msg)
+            raise SyntaxError(msg.message)
+
+
+def process_one_block(src: str, inline=True):
+    with NamedTemporaryFile('w', suffix='.m') as f:
+        f.write(src)
+        f.flush()
+
+        target_path = Path(f.name).with_suffix('.py')
+
+        try:
+            options = parse_args([
+                "mh_python",
+                "--single",
+                "--python-alongside",
+                f.name])
+            if inline is True:
+                options.inline_mode = inline
+
+            process_one_file(f.name, options)
+            return target_path.read_text()
+        finally:
+            if target_path.exists():
+                target_path.unlink()
 
 
 def main_handler():
