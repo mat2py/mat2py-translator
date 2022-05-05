@@ -226,7 +226,6 @@ class Python_Visitor(AST_Visitor):
         # Python and Matlab keywords set are different. Luckily, Matlab forbids identifier start with `_`.
         prefix = '_' if value in (
             *keyword.kwlist,  # python keyword can not be overwritten
-            'all', 'any', "slice", "eval",  # python build-in names do not suggest overwriting
             'I', 'M', 'C',  # mat2py keywords
         ) else ''
         self[node] = f'{prefix}{value}'
@@ -656,7 +655,7 @@ def process_one_file(path: [Path, str], options=None, mh=None):
             raise SyntaxError(msg.message)
 
 
-def process_one_block(src: str, inline=True):
+def process_one_block(src: str, inline=True, format=False):
     with NamedTemporaryFile('w', suffix='.m') as f:
         f.write(src)
         f.flush()
@@ -670,7 +669,9 @@ def process_one_block(src: str, inline=True):
                 "--python-alongside",
                 f.name])
             if inline is True:
-                options.inline_mode = inline
+                options.inline_mode = True
+            if format is True:
+                options.format = True
 
             process_one_file(f.name, options)
             return target_path.read_text()

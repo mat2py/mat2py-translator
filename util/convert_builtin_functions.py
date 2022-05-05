@@ -107,11 +107,11 @@ def main():
             if body.strip() != "":
                 body = body + "\n"
 
-            build_in_funcs.setdefault(sub_toolbox, []).append(
+            build_in_funcs.setdefault(sub_toolbox, []).append((name,(
                 f"def {name}(*args):\n"
                 f"{body}"
                 f'    raise NotImplementedError("{name}")\n'
-            )
+            )))
 
     for k, v in build_in_funcs.items():
         (Path(options.output) / k.parent).mkdir(parents=True, exist_ok=True)
@@ -120,10 +120,13 @@ def main():
                 "# type: ignore \n"
                 "from mat2py.common.backends import numpy as np\n"
                 "from ._internal.array import M \n"
-                "from ._internal.helper import argout_wrapper_decorators \n"
+                "from ._internal.helper import mp_argout_wrapper_decorators \n"
                 ""
             )
-            fd.write("\n".join(v))
+            name, code = zip(*v)
+            name = ', '.join(f'"{n}"' for n in name)
+            fd.write(f'__all__ = [{name}]\n\n')
+            fd.write("\n".join(code))
 
 
 if __name__ == "__main__":
