@@ -1,0 +1,22 @@
+__pycache__
+*~
+.DS_Store
+.idea/
+.vscode/
+
+
+# Generated files
+tests/mat2np/**/*.py
+*.pdf
+
+# Unpacked Simulink models
+*_unpacked
+
+# Simulink local stuff
+slprj
+
+# Python packaging
+build
+dist
+miss_hit.egg-info
+miss_hit_core.egg-info
