@@ -8,7 +8,7 @@ with open("README.md", "r") as fd:
 
 setuptools.setup(
     name="mh_python",
-    version="0.0.1",
+    version="0.0.10",
     author="Chaoqing Wang",
     author_email="chaoqingwang.nick@gmail.com",
     description="Matlab to Python/Numpy translator",
@@ -17,7 +17,7 @@ setuptools.setup(
     url="https://translate.mat2py.org",
     license="GNU Affero General Public License v3",
     packages=["mh_python"],
-    install_requires=["miss_hit_core>=0.9.30"],
+    install_requires=["miss-hit-core>=0.9.30"],
     python_requires=">=3.6, <4",
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
